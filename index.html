@@ -4,7 +4,7 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-		<title>reveal.js</title>
+		<title>Presentation</title>
 
 		<link rel="stylesheet" href="dist/reset.css">
 		<link rel="stylesheet" href="dist/reveal.css">
@@ -16,15 +16,337 @@
 	<body>
 		<div class="reveal">
 			<div class="slides">
-				<section>Introduction</section>
-				<section>Planning</section>
-				<section>Database Modifications</section>
-				<section>Backend Implementation</section>
-				<section>Backend Testing</section>
-				<section>Frontend Implementation</section>
-				<section>Frontend Testing</section>
-				<section>Complete Product</section>
-				<section>Potential Future Implementation</section>
+				<section>
+					<h1>DVD Rental System</h1>
+				</section>
+				<section>
+					<h2>Introduction</h2>
+					<ul>
+						<li>DVD Rental Point-of-Sale system</li>
+						<li>Plan changed to Online Rental Store to suit time constraints better</li>
+					</ul>
+
+					<aside class="notes">
+						Initially was planning on a point of sale system with self-service functionality.
+						This plan changed due to time constraints and to fit the traning material better and became closer
+						to an online DVD Rental solution.
+
+						Let's move forward to the implementation.
+					</aside>
+				</section>
+				<section>
+					<h2>Implementing Controllers</h2>
+					<p>Controllers are implemented with a generic class.</p>
+					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
+						@GetMapping("")
+						public @ResponseBody Iterable<T> getPaged(Pageable p) {
+							return repository.findAll(p);
+						}
+
+						@GetMapping("/{id}")
+						public @ResponseBody Optional<T>
+							get(@PathVariable(value = "id") I id) {
+
+							return repository.findById(id);
+						}
+
+						public @ResponseBody T create(T obj) {
+							repository.save(obj);
+							return obj;
+						}
+						
+						// ...
+					</script></code></pre>
+
+					<aside class="notes">
+						The first stage was to implement a controller suitable to fetch data from the database.
+						I decided to produce a generic controller that could be applied to any table in the database,
+						accellerating future development.
+					</aside>
+				</section>
+				<section>
+					<h2>Implementing Controllers</h2>
+					<p>Creating a controller for a particular database table becomes easy&hellip;</p>
+					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
+						@RestController
+						@RequestMapping("/api/v1/actors")
+						public class ActorsController
+							extends ModelController<Actor, Integer, ActorRepository> {
+
+							public ActorsController(ActorRepository repository) {
+								super(repository);
+							}
+
+							// extensions could go here...
+						}
+					</script></code></pre>
+
+					<aside class="notes">
+						This meant that implementing the controller for a database table was straightfoward and enabled
+						each controller to add more behaviour on top of the default behaviour defined in the generic class.
+					</aside>
+				</section>
+				<section>
+					<h2>Implementing Controllers</h2>
+					<p>One key to enabling a clean UI</p>
+					<pre><code class="hljs" data-trim data-line-numbers="3"><script type="text/template">
+						public interface ActorRepository
+							extends CrudRepository<Actor, Integer>,
+									PagingAndSortingRepository<Actor, Integer> { }
+					</script></code></pre>
+
+					<aside class="notes">
+						Using PagingAndSortingRepository provides extra functionality already built into Spring that
+						takes data and separates it into pages and allows it to be sorted by any database column.
+					</aside>
+				</section>
+				<section>
+					<h2>Implementing Controllers</h2>
+					<p>The result of this is a clean, efficient interface.</p>
+					<iframe data-src="http://localhost:3000/#/browse" width="800" height="500" frameborder="0" marginwidth="0" marginheight="0" style="border:3px solid #666; background-color: white;" allowfullscreen></iframe>
+
+					<aside class="notes">
+						Demonstrate sorting.
+					</aside>
+				</section>
+				<section>
+					<h2>Implementing Controllers</h2>
+					<p>The React for this is based around a Pageable component.</p>
+					<pre><code class="hljs" data-trim data-line-numbers="21-33,53-72,87-93"><script type="text/template">
+						import React, { useEffect, useState } from "react";
+						import LoadingSpinner from './LoadingSpinner';
+						import config from "../config";
+
+						export default function Pageable(props) {
+							const uri = props.uri;
+							const sortableBy = {
+								'__default__': 'Default',
+								...props['sortable-by'] || {},
+							};
+							const pageProp = +props.page || 0;
+							const generator = props.generator || (item => <div>{item.title}</div>);
+
+							const [error, setError] = useState(null);
+							const [data, setData] = useState(null);
+							const [page, setPage] = useState(pageProp);
+							const [sortBy, setSortBy] = useState('__default__');
+							const [itemsPerPage, setItemsPerPage] = useState(20);
+							
+							useEffect(() => {
+								let url = new URL(config.API_BASE + uri);
+								url.searchParams.set('page', page);
+								url.searchParams.set('size', itemsPerPage);
+								if (sortBy !== '__default__') {
+									const direction = sortBy.substring(0, 1);
+									let field = sortBy.substring(1);
+									if (direction === '-') field += ',desc';
+									url.searchParams.set('sort', field);
+								}
+								fetch(url)
+									.then(res => res.json())
+									.then(setData)
+									.catch(setError);
+							}, [uri, page, sortBy, itemsPerPage]);
+
+							if (error !== null) {
+								return (
+									<div className="error">
+										<h1>Error</h1>
+										<p>{error.message}</p>
+									</div>
+								);
+							} else if (data === null) {
+								return (
+									<LoadingSpinner />
+								);
+							} else {
+								return (
+									<div className="pagable">
+										<div className="header">
+											<div className="sort">
+												Sort by:&nbsp;
+												<select value={sortBy} onChange={e => {
+														setSortBy(e.target.value);
+														setPage(0);
+													}}>
+													
+													{Object.keys(sortableBy).map(key => {
+														if (key === '__default__') {
+															return (
+																<option value={key} key={key}>{sortableBy[key]}</option>
+															);
+														} else {
+															return (
+																<React.Fragment key={key}>
+																	<option value={'+' + key}>{sortableBy[key]} (ascending)</option>
+																	<option value={'-' + key}>{sortableBy[key]} (descending)</option>
+																</React.Fragment>
+															);
+														}
+													})}
+												</select>
+											</div>
+											<div className="items-per-page">
+												Items per page:&nbsp;
+												<select onChange={e => {
+														setItemsPerPage(e.target.value);
+														setPage(0);
+													}} value={itemsPerPage}>
+													<option>20</option>
+													<option>50</option>
+													<option>100</option>
+												</select>
+											</div>
+										</div>
+
+										<div className="paged-content">
+											{data.content.map(item => (
+												<React.Fragment key={item.id}>
+													{ generator(item) }
+												</React.Fragment>
+											))}
+										</div>
+
+										<div className="pages">
+											<button disabled={page <= 0} onClick={() => setPage(page - 1)}>Prev</button>
+											&nbsp;Page&nbsp;
+											<select onChange={e => setPage(e.target.value)} value={page}>
+												{Array.from(Array(data.totalPages).keys()).map(i => (
+													<option key={i} value={i}>{i + 1}</option>
+												))}
+											</select>
+											&nbsp;of {data.totalPages}&nbsp;
+											<button disabled={page >= data.totalPages - 1} onClick={() => setPage(page + 1)}>Next</button>
+										</div>
+									</div>
+								);
+							}
+						}
+					</script></code></pre>
+
+					<aside class="notes">
+						Explain how highlighted sections work.
+					</aside>
+				</section>
+				<section>
+					<h2>Adding API Authentication</h2>
+					<p>I also decided to add authentication</p>
+					<ol>
+						<li>The user submits a username and password to <code>/api/v1/auth/signin</code>.</li>
+						<li>The username and password are verified.</li>
+						<li>A token is issued, valid for 24 hours from the current IP address.</li>
+					</ol>
+				</section>
+				<section>
+					<h2>Adding API Authentication</h2>
+					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
+						CREATE TABLE `customer_logins` (
+							`customer_id` SMALLINT(5) UNSIGNED NOT NULL,
+							`username` VARCHAR(255) NOT NULL,
+							`password_hash` VARCHAR(255) NOT NULL,
+							PRIMARY KEY(`customer_id`),
+							CONSTRAINT `fk_customer_login_id`
+								FOREIGN KEY (`customer_id`)
+								REFERENCES `customer` (`customer_id`)
+								ON UPDATE CASCADE
+								ON DELETE CASCADE
+						);
+
+						CREATE TABLE `customer_tokens` (
+							`customer_id` SMALLINT(5) UNSIGNED NOT NULL,
+							`token` VARCHAR(64) NOT NULL,
+							`valid_from_ip` VARCHAR(64) NOT NULL,
+							`valid_until` TIMESTAMP NOT NULL,
+							PRIMARY KEY (`customer_id`, `token`),
+							CONSTRAINT `fk_customer_token_customer_id`
+								FOREIGN KEY (`customer_id`)
+								REFERENCES `customer` (`customer_id`)
+								ON UPDATE CASCADE
+								ON DELETE CASCADE
+						);
+
+						CREATE TABLE `staff_tokens` (
+							`staff_id` TINYINT(3) UNSIGNED NOT NULL,
+							`token` VARCHAR(64) NOT NULL,
+							`valid_from_ip` VARCHAR(64) NOT NULL,
+							`valid_until` TIMESTAMP NOT NULL,
+							PRIMARY KEY (`staff_id`, `token`),
+							CONSTRAINT `fk_staff_token_staff_id`
+								FOREIGN KEY (`staff_id`)
+								REFERENCES `staff` (`staff_id`)
+								ON UPDATE CASCADE
+								ON DELETE CASCADE
+						);
+					</script></code></pre>
+
+					<aside class="notes">
+						Explain purpose of each table.
+					</aside>
+				</section>
+				<section>
+					<h2>Testing Authentication</h2>
+					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
+						Feature: Authentication
+						As an API user, I need to be able to obtain an authentication token and validate it's currency.
+
+						Scenario: Obtain a new token
+							Given the JSON body: "{\"username\":\"Customer\", \"password\":\"12345\"}"
+							When the endpoint "/api/v1/auth/signin" is accessed with a "POST" request
+							Then the response has status 200
+
+						Scenario: Validate a current token
+							Given I have a valid API token
+							When the endpoint "/api/v1/auth/status" is accessed with a "GET" request
+							Then the response matches "\"AUTHENTICATED\""
+
+						Scenario: Validate a current token
+							Given I have an expired API token
+							When the endpoint "/api/v1/auth/status" is accessed with a "GET" request
+							Then the response matches "\"EXPIRED_TOKEN\""
+
+						Scenario: Attempt to use an invalid token
+							Given I have an invalid API token
+							When the endpoint "/api/v1/auth/status" is accessed with a "GET" request
+							Then the response matches "\"INVALID_TOKEN\""
+
+						Scenario: Make a request without a token
+							When the endpoint "/api/v1/auth/status" is accessed with a "GET" request
+							Then the response matches "\"NO_TOKEN\""
+					</script></code></pre>
+				</section>
+				<section>
+					<h2>Testing Authentication</h2>
+					<p>Unit testing with JUnit and Mockito, Further testing with Cucumber.</p>
+					<iframe data-src="file:///home/lily/Documents/dvdrentalpos/target/cucumber-report.html" width="800" height="500" frameborder="0" marginwidth="0" marginheight="0" style="border:3px solid #666; background-color: white;" allowfullscreen></iframe>
+				</section>
+				<section>
+					<h2>Testing the API</h2>
+					<p>Again, generic tests to cover each database table quickly, specialised test developed to fill in gaps.</p>
+					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
+						@Test
+						public void testGet() {
+							T obj = getTestObject();
+							when(repository.findById(obj.getId())).thenReturn(Optional.of(obj));
+
+							Optional<T> opt = controller.get(obj.getId());
+							verify(repository).findById(obj.getId());
+
+							assertTrue(opt.isPresent(), "object not fetched");
+							assertEquals(obj, opt.get(), "object not correct");
+						}
+					</script></code></pre>
+					
+				</section>
+				<section>
+					<h2>Cucumber + Selenium Testing</h2>
+					<iframe data-src="file:///home/lily/Documents/dvdrentalpos/target/cucumber-report.html" width="800" height="500" frameborder="0" marginwidth="0" marginheight="0" style="border:3px solid #666; background-color: white;" allowfullscreen></iframe>
+				</section>
+				<section>
+					<iframe data-src="http://localhost:3000/#/" width="1280" height="600" frameborder="0" marginwidth="0" marginheight="0" style="border:3px solid #666; background-color: white;" allowfullscreen></iframe>
+				</section>
+				<section>
+					<p>Questions welcome.</p>
+				</section>
 			</div>
 		</div>
 
