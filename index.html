@@ -18,13 +18,11 @@
 			<div class="slides">
 				<section>
 					<h1>DVD Rental System</h1>
+					<h2>A Spring + React Project</h2>
 				</section>
 				<section>
 					<h2>Introduction</h2>
-					<ul>
-						<li>DVD Rental Point-of-Sale system</li>
-						<li>Plan changed to Online Rental Store to suit time constraints better</li>
-					</ul>
+					<p>Online DVD rental store</p>
 
 					<aside class="notes">
 						Initially was planning on a point of sale system with self-service functionality.
@@ -61,7 +59,8 @@
 					<aside class="notes">
 						The first stage was to implement a controller suitable to fetch data from the database.
 						I decided to produce a generic controller that could be applied to any table in the database,
-						accellerating future development.
+						accellerating future development and enabling the creation of generic tests to cover all
+						database tables.
 					</aside>
 				</section>
 				<section>
@@ -106,126 +105,15 @@
 					<iframe data-src="http://localhost:3000/#/browse" width="800" height="500" frameborder="0" marginwidth="0" marginheight="0" style="border:3px solid #666; background-color: white;" allowfullscreen></iframe>
 
 					<aside class="notes">
-						Demonstrate sorting.
+						Demonstrate pages and sorting.
 					</aside>
 				</section>
 				<section>
-					<h2>Implementing Controllers</h2>
-					<p>The React for this is based around a Pageable component.</p>
-					<pre><code class="hljs" data-trim data-line-numbers="21-33,53-72,87-93"><script type="text/template">
-						import React, { useEffect, useState } from "react";
-						import LoadingSpinner from './LoadingSpinner';
-						import config from "../config";
-
-						export default function Pageable(props) {
-							const uri = props.uri;
-							const sortableBy = {
-								'__default__': 'Default',
-								...props['sortable-by'] || {},
-							};
-							const pageProp = +props.page || 0;
-							const generator = props.generator || (item => <div>{item.title}</div>);
-
-							const [error, setError] = useState(null);
-							const [data, setData] = useState(null);
-							const [page, setPage] = useState(pageProp);
-							const [sortBy, setSortBy] = useState('__default__');
-							const [itemsPerPage, setItemsPerPage] = useState(20);
-							
-							useEffect(() => {
-								let url = new URL(config.API_BASE + uri);
-								url.searchParams.set('page', page);
-								url.searchParams.set('size', itemsPerPage);
-								if (sortBy !== '__default__') {
-									const direction = sortBy.substring(0, 1);
-									let field = sortBy.substring(1);
-									if (direction === '-') field += ',desc';
-									url.searchParams.set('sort', field);
-								}
-								fetch(url)
-									.then(res => res.json())
-									.then(setData)
-									.catch(setError);
-							}, [uri, page, sortBy, itemsPerPage]);
-
-							if (error !== null) {
-								return (
-									<div className="error">
-										<h1>Error</h1>
-										<p>{error.message}</p>
-									</div>
-								);
-							} else if (data === null) {
-								return (
-									<LoadingSpinner />
-								);
-							} else {
-								return (
-									<div className="pagable">
-										<div className="header">
-											<div className="sort">
-												Sort by:&nbsp;
-												<select value={sortBy} onChange={e => {
-														setSortBy(e.target.value);
-														setPage(0);
-													}}>
-													
-													{Object.keys(sortableBy).map(key => {
-														if (key === '__default__') {
-															return (
-																<option value={key} key={key}>{sortableBy[key]}</option>
-															);
-														} else {
-															return (
-																<React.Fragment key={key}>
-																	<option value={'+' + key}>{sortableBy[key]} (ascending)</option>
-																	<option value={'-' + key}>{sortableBy[key]} (descending)</option>
-																</React.Fragment>
-															);
-														}
-													})}
-												</select>
-											</div>
-											<div className="items-per-page">
-												Items per page:&nbsp;
-												<select onChange={e => {
-														setItemsPerPage(e.target.value);
-														setPage(0);
-													}} value={itemsPerPage}>
-													<option>20</option>
-													<option>50</option>
-													<option>100</option>
-												</select>
-											</div>
-										</div>
-
-										<div className="paged-content">
-											{data.content.map(item => (
-												<React.Fragment key={item.id}>
-													{ generator(item) }
-												</React.Fragment>
-											))}
-										</div>
-
-										<div className="pages">
-											<button disabled={page <= 0} onClick={() => setPage(page - 1)}>Prev</button>
-											&nbsp;Page&nbsp;
-											<select onChange={e => setPage(e.target.value)} value={page}>
-												{Array.from(Array(data.totalPages).keys()).map(i => (
-													<option key={i} value={i}>{i + 1}</option>
-												))}
-											</select>
-											&nbsp;of {data.totalPages}&nbsp;
-											<button disabled={page >= data.totalPages - 1} onClick={() => setPage(page + 1)}>Next</button>
-										</div>
-									</div>
-								);
-							}
-						}
-					</script></code></pre>
+					<h2>Adding API Authentication</h2>
 
 					<aside class="notes">
-						Explain how highlighted sections work.
+						I decided to challenge myself both in implementation and thorough testing by including
+						an authentication system.
 					</aside>
 				</section>
 				<section>
@@ -236,6 +124,12 @@
 						<li>The username and password are verified.</li>
 						<li>A token is issued, valid for 24 hours from the current IP address.</li>
 					</ol>
+
+					<aside class="notes">
+						The system was intended to match the level of security present in the database already,
+						as the staff table already has a username and password column.
+						For customers and to hold the tokens, extra database tables are needed.
+					</aside>
 				</section>
 				<section>
 					<h2>Adding API Authentication</h2>
@@ -284,6 +178,46 @@
 					</aside>
 				</section>
 				<section>
+					<h2>Adding API Authentication</h2>
+					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
+						String token = request.getHeader("x-token");
+
+						if (token == null) {
+							request.setAttribute(ATTRIBUTE, AuthenticationResult.NO_TOKEN);
+							filterChain.doFilter(servletRequest, servletResponse);
+							return;
+						}
+
+						Optional<StaffToken> staffToken = tokensRepository.findByToken(token);
+						if (staffToken.isEmpty()) {
+							request.setAttribute(ATTRIBUTE, AuthenticationResult.INVALID_TOKEN);
+							filterChain.doFilter(servletRequest, servletResponse);
+							return;
+						}
+
+						StaffToken st = staffToken.get();
+						if (st.getValidUntil().isBefore(LocalDateTime.now())) {
+							tokensRepository.delete(st);
+							request.setAttribute(ATTRIBUTE, AuthenticationResult.EXPIRED_TOKEN);
+							filterChain.doFilter(servletRequest, servletResponse);
+							return;
+						}
+						if (!st.getValidFromIp().equals(request.getRemoteAddr())) {
+							request.setAttribute(ATTRIBUTE, AuthenticationResult.TOKEN_USED_FROM_WRONG_ADDRESS);
+							filterChain.doFilter(servletRequest, servletResponse);
+							return;
+						}
+
+						request.setAttribute(ATTRIBUTE, AuthenticationResult.AUTHENTICATED);
+					</script></code></pre>
+
+					<aside class="notes">
+						The main implementation of verifying the authentication on the API side is shown here.
+						It's a step-by-step check trying to rule out having an authenticated user. If all checks
+						pass then the user is considered authenticated.
+					</aside>
+				</section>
+				<section>
 					<h2>Testing Authentication</h2>
 					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
 						Feature: Authentication
@@ -299,7 +233,7 @@
 							When the endpoint "/api/v1/auth/status" is accessed with a "GET" request
 							Then the response matches "\"AUTHENTICATED\""
 
-						Scenario: Validate a current token
+						Scenario: Validate an expired token
 							Given I have an expired API token
 							When the endpoint "/api/v1/auth/status" is accessed with a "GET" request
 							Then the response matches "\"EXPIRED_TOKEN\""
@@ -313,11 +247,21 @@
 							When the endpoint "/api/v1/auth/status" is accessed with a "GET" request
 							Then the response matches "\"NO_TOKEN\""
 					</script></code></pre>
+
+					<aside class="notes">
+						Robust testing is vital for authentication. Given the need for a reliable environment, I decided to approach
+						this testing with Cucumber.
+						This tests both a successful authentication, and failed authentication routes.
+					</aside>
 				</section>
 				<section>
 					<h2>Testing Authentication</h2>
-					<p>Unit testing with JUnit and Mockito, Further testing with Cucumber.</p>
 					<iframe data-src="file:///home/lily/Documents/dvdrentalpos/target/cucumber-report.html" width="800" height="500" frameborder="0" marginwidth="0" marginheight="0" style="border:3px solid #666; background-color: white;" allowfullscreen></iframe>
+					
+					<aside class="notes">
+						The result of this cucumber testing is a set of passes, which gives a good indication that the
+						authentication works as intended.
+					</aside>
 				</section>
 				<section>
 					<h2>Testing the API</h2>
@@ -335,17 +279,54 @@
 							assertEquals(obj, opt.get(), "object not correct");
 						}
 					</script></code></pre>
-					
 				</section>
 				<section>
 					<h2>Cucumber + Selenium Testing</h2>
-					<iframe data-src="file:///home/lily/Documents/dvdrentalpos/target/cucumber-report.html" width="800" height="500" frameborder="0" marginwidth="0" marginheight="0" style="border:3px solid #666; background-color: white;" allowfullscreen></iframe>
+					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
+						@Selenium
+						Scenario: View a film
+						  When I navigate to "/film/1"
+						  Then "h1.title" is visible
+						  And "ul" is visible
+						  And the robot quits
+					  
+						@Selenium
+						Scenario: View list of actors
+						  When I navigate to "/actors"
+						  Then A pageable element is visible
+						  And the robot quits
+					</script></code></pre>
+
+					<aside class="notes">
+						For frontend testing, Selenium automates the browser interactions, but Cucumber provides
+						a clean, concise way of structuring these tests.
+					</aside>
+				</section>
+				<section>
+					<h2>Testing Outcomes</h2>
+					<p>63.4% coverage</p>
+					<p>(>90% without authentication)</p>
+
+					<aside class="notes">
+						Although coverage shows as fairly low, this is due to it being impossible to test the authenticated methods
+						properly in a mocked environment.
+						There are Cucumber tests covering these cases, which - if included with code coverage (which is due to a
+						limitation of Maven) - coverage would be higher.
+						Prior to API authentication, coverage was over 99%.
+					</aside>
 				</section>
 				<section>
 					<iframe data-src="http://localhost:3000/#/" width="1280" height="600" frameborder="0" marginwidth="0" marginheight="0" style="border:3px solid #666; background-color: white;" allowfullscreen></iframe>
+
+					<aside class="notes">
+						Demonstrate Films, Actors, Selecting an actor, Selecting a film, Sign in, show edit features.
+					</aside>
 				</section>
 				<section>
 					<p>Questions welcome.</p>
+					<p>See the project yourself: <a href="https://hpkns.uk/tsifilms">hpkns.uk/tsifilms</a></p>
+					<p><small>(Azure can be quite slow!)</small></p>
+					<p>Browse the source: <a href="https://hpkns.uk/tsisource">hpkns.uk/tsisource</a></p>
 				</section>
 			</div>
 		</div>
