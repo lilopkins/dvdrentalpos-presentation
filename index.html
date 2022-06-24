@@ -25,11 +25,7 @@
 					<p>Online Film rental store</p>
 
 					<aside class="notes">
-						Initially was planning on a point of sale system with self-service functionality.
-						This plan changed due to time constraints and to fit the traning material better and became closer
-						to an online Film Rental solution.
-
-						Let's move forward to the implementation.
+						Working on an online film rental store. Nicely includes all of the areas and tools we've been training with.
 					</aside>
 				</section>
 				<section>
@@ -107,6 +103,95 @@
 					<aside class="notes">
 						Demonstrate pages and sorting.
 					</aside>
+				</section>
+				<section>
+					<h2>Testing the API</h2>
+					<p>Again, generic tests to cover each database table quickly, specialised test developed to fill in gaps.</p>
+					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
+						@Test
+						public void testGet() {
+							T obj = getTestObject();
+							when(repository.findById(obj.getId())).thenReturn(Optional.of(obj));
+
+							Optional<T> opt = controller.get(obj.getId());
+							verify(repository).findById(obj.getId());
+
+							assertTrue(opt.isPresent(), "object not fetched");
+							assertEquals(obj, opt.get(), "object not correct");
+						}
+					</script></code></pre>
+				</section>
+				<section>
+					<h2>Testing the API</h2>
+					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
+						Feature: API Model
+							As an API user I need to be able to use an API model.
+
+							Scenario Outline: Get a list of all resources.
+								When the endpoint "<endpoint>" is accessed with a "GET" request
+								Then the response has status 200
+								And a paged list of resources is returned
+
+								Examples:
+								| endpoint           |
+								| /api/v1/actors     |
+								| /api/v1/addresses  |
+								| /api/v1/categories |
+								| /api/v1/cities     |
+								| /api/v1/countries  |
+								| /api/v1/films      |
+								| /api/v1/languages  |
+								| /api/v1/staff      |
+
+							Scenario Outline: Get an individual resource.
+								When the endpoint "<endpoint>" is accessed with a "GET" request
+								Then the response has status 200
+
+								Examples:
+								| endpoint             |
+								| /api/v1/actors/1     |
+								| /api/v1/addresses/1  |
+								| /api/v1/categories/1 |
+								| /api/v1/cities/1     |
+								| /api/v1/countries/1  |
+								| /api/v1/films/1      |
+								| /api/v1/languages/1  |
+								| /api/v1/staff/1      |
+
+							Scenario Outline: Create a new resource.
+								Given the JSON body: "<json>"
+								And I have a valid API token
+								When the endpoint "<endpoint>" is accessed with a "PUT" request
+								Then the response has status 200
+
+								Examples:
+								| endpoint           | json |
+								| /api/v1/actors     | {\"firstName\": \"Johnny\", \"lastName\": \"Depp\"} |
+								| /api/v1/countries  | {\"country\": \"Sweden\"} |
+								| /api/v1/cities     | {\"city\": \"Stockholm\", \"country\": {\"id\": 1}} |
+
+							Scenario Outline: Update a resource.
+								Given the JSON body: "<json>"
+								And I have a valid API token
+								When the endpoint "<endpoint>" is accessed with a "PUT" request
+								Then the response has status 200
+								And the response matches "<result>"
+
+								Examples:
+								| endpoint         | json | result |
+								| /api/v1/cities/1 | {\"id\": 1, \"city\": \"Malmo\", \"country\": {\"id\": 1}} | {\"id\":1,\"city\":\"Malmo\",\"country\":{\"id\":1,\"country\":null}} |
+
+							Scenario Outline: Delete a resource.
+								Given I have a valid API token
+								When the endpoint "<endpoint>" is accessed with a "DELETE" request
+								Then the response has status 200
+
+								Examples:
+								| endpoint             |
+								| /api/v1/actors/1     |
+								| /api/v1/cities/1     |
+								| /api/v1/countries/1  |
+					</script></code></pre>
 				</section>
 				<section>
 					<h2>Adding API Authentication</h2>
@@ -262,24 +347,7 @@
 						The result of this cucumber testing is a set of passes, which gives a good indication that the
 						authentication works as intended.
 					</aside>
-				</section>
-				<section>
-					<h2>Testing the API</h2>
-					<p>Again, generic tests to cover each database table quickly, specialised test developed to fill in gaps.</p>
-					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
-						@Test
-						public void testGet() {
-							T obj = getTestObject();
-							when(repository.findById(obj.getId())).thenReturn(Optional.of(obj));
-
-							Optional<T> opt = controller.get(obj.getId());
-							verify(repository).findById(obj.getId());
-
-							assertTrue(opt.isPresent(), "object not fetched");
-							assertEquals(obj, opt.get(), "object not correct");
-						}
-					</script></code></pre>
-				</section>
+				</section>				
 				<section>
 					<h2>Cucumber + Selenium Testing</h2>
 					<pre><code class="hljs" data-trim data-line-numbers><script type="text/template">
@@ -313,6 +381,8 @@
 						There are Cucumber tests covering these cases, which - if included with code coverage (which is due to a
 						limitation of Maven) - coverage would be higher.
 						Prior to API authentication, coverage was over 99%.
+
+						<b>Show SonarCloud!</b>
 					</aside>
 				</section>
 				<section>
